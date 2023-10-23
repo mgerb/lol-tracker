@@ -1,12 +1,18 @@
-use anyhow::{Context, Result};
+use std::sync::{Arc, Mutex};
+
+use anyhow::{anyhow, Context, Result};
+use dtos::summoner_dto::SummonerDto;
 use game::GameDto;
 use serde::{Deserialize, Serialize};
 use sqlx::{
     sqlite::{SqlitePool, SqlitePoolOptions},
-    QueryBuilder, Sqlite,
+    Pool, QueryBuilder, Sqlite,
 };
 
+mod db;
+mod dtos;
 mod game;
+mod op_gg_api;
 mod summoner;
 
 #[derive(sqlx::FromRow, Serialize, Deserialize)]
@@ -16,51 +22,33 @@ struct SDto {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // create db.sqlite file if not exists
+    let pool = db::create_db().await?;
 
-    std::fs::File::create("db.sqlite").context("failed to create db.sqlite")?;
-
-    let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect("sqlite:db.sqlite")
-        .await?;
-
-    sqlx::migrate!().run(&pool).await?;
-
-    let summoner = summoner::Summoner::from_name("yeahistealdogs")
-        .await
-        .context("failed to get summoner")?;
+    let summoner = op_gg_api::get_summoner("YeahIStealDogs").await?.to_dto();
 
     summoner.create(&pool).await?;
 
-    let games = summoner.get_games().await?;
+    let games = op_gg_api::get_games(summoner.id.as_str()).await?;
 
     for game in games {
-        let game_dto: GameDto = game.into();
+        let game_dto = game.to_dto();
         game_dto.create(&pool).await?;
     }
 
-    // let stream = sqlx::query_as::<_, GameDto>("SELECT * FROM game")
-    //     .fetch(&pool)
-    //     .await?;
+    tokio::spawn(async move { start_worker(pool.clone()).await });
 
-    // let q: QueryBuilder<Sqlite> = QueryBuilder::new("");
-    //
-    // let d = sqlx::query_as!(GameDto, "SELECT * FROM game")
-    //     .fetch_all(&pool)
-    //     .await?;
+    Ok(())
+}
 
-    // print d
+async fn start_worker(pool: Pool<Sqlite>) -> Result<()> {
+    let summoners = SummonerDto::get_all(&pool).await?;
 
-    //     let recs = sqlx::query(
-    //         r#"
-    // SELECT id, description, done
-    // FROM todos
-    // ORDER BY id
-    //         "#,
-    //     )
-    //     .fetch_all(&pool)
-    //     .await?;
+    for s in summoners {
+        let games = op_gg_api::get_games(s.id.as_str()).await?;
+        for game in games {
+            game.to_dto().create(&pool).await?;
+        }
+    }
 
     Ok(())
 }
