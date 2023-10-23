@@ -1,81 +1,66 @@
 use anyhow::{Context, Result};
+use game::GameDto;
 use serde::{Deserialize, Serialize};
+use sqlx::{
+    sqlite::{SqlitePool, SqlitePoolOptions},
+    QueryBuilder, Sqlite,
+};
+
+mod game;
+mod summoner;
+
+#[derive(sqlx::FromRow, Serialize, Deserialize)]
+struct SDto {
+    id: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let summoner_id = get_summoner_id("plexs").await?;
-    let stats = get_stats(&summoner_id).await?;
+    // create db.sqlite file if not exists
 
-    Ok(())
-}
+    std::fs::File::create("db.sqlite").context("failed to create db.sqlite")?;
 
-async fn get_summoner_id(name: &str) -> Result<String> {
-    let body = reqwest::get(format!("https://www.op.gg/_next/data/E6tX-RCMrF_ZUcw3Zom88/en_US/summoners/na/plexs.json?region=na&summoner={}", name))
-        .await?
-        .text()
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect("sqlite:db.sqlite")
         .await?;
 
-    let json: serde_json::Value = serde_json::from_str(&body)?;
+    sqlx::migrate!().run(&pool).await?;
 
-    let summoner_id = json["pageProps"]["data"]["summoner_id"]
-        .as_str()
-        .context("name not found")?;
+    let summoner = summoner::Summoner::from_name("yeahistealdogs")
+        .await
+        .context("failed to get summoner")?;
 
-    Ok(summoner_id.to_string())
-}
+    summoner.create(&pool).await?;
 
-#[derive(Serialize, Deserialize)]
-struct Game {
-    id: String,
-    myData: MyData,
-    created_at: chrono::DateTime<chrono::Utc>,
-}
+    let games = summoner.get_games().await?;
 
-#[derive(Serialize, Deserialize)]
-struct MyData {
-    champion_id: u32,
-    stats: MyDataStats,
-    tier_info: TierInfo,
-}
-
-#[derive(Serialize, Deserialize)]
-struct MyDataStats {
-    assist: u32,
-    death: u32,
-    kill: u32,
-    result: String,
-}
-
-#[derive(Serialize, Deserialize)]
-struct TierInfo {
-    division: Option<u32>,
-    lp: Option<u32>,
-    tier: Option<String>,
-    border_image_url: Option<String>,
-    tier_image_url: Option<String>,
-}
-
-async fn get_stats(summoner_id: &str) -> Result<Vec<Game>> {
-    let body = reqwest::get(format!("https://op.gg/api/v1.0/internal/bypass/games/na/summoners/{}?&limit=5&hl=en_US&game_type=total", summoner_id))
-        .await?
-        .text()
-        .await?;
-
-    let json: serde_json::Value = serde_json::from_str(&body)?;
-
-    let games = json["data"].as_array().context("games not found")?;
-
-    let mut all_games: Vec<Game> = vec![];
-
-    for g in games {
-        let game: Game = serde_json::from_value(g.clone())?;
-
-        {
-            println!("{}", serde_json::to_string_pretty(&game)?);
-        }
-
-        all_games.push(game);
+    for game in games {
+        let game_dto: GameDto = game.into();
+        game_dto.create(&pool).await?;
     }
 
-    Ok(all_games)
+    // let stream = sqlx::query_as::<_, GameDto>("SELECT * FROM game")
+    //     .fetch(&pool)
+    //     .await?;
+
+    // let q: QueryBuilder<Sqlite> = QueryBuilder::new("");
+    //
+    // let d = sqlx::query_as!(GameDto, "SELECT * FROM game")
+    //     .fetch_all(&pool)
+    //     .await?;
+
+    // print d
+
+    //     let recs = sqlx::query(
+    //         r#"
+    // SELECT id, description, done
+    // FROM todos
+    // ORDER BY id
+    //         "#,
+    //     )
+    //     .fetch_all(&pool)
+    //     .await?;
+
+    Ok(())
 }
