@@ -1,8 +1,12 @@
-
-## SQLX
-
+## Database Init
+Run for refreshing the database:
+```
+rm db.sqlite && touch db.sqlite && cargo sqlx prepare
+cargo sqlx migrate run
 ```
 
+## SQLX
+```
 cargo install sqlx-cli
 
 cargo sqlx prepare

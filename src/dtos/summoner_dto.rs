@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use sqlx::{Pool, Sqlite};
 
+#[derive(Debug)]
 pub struct SummonerDto {
     pub id: String,
     pub name: String,

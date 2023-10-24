@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS game (
     deaths INTEGER NOT NULL,
     kills INTEGER NOT NULL,
     result TEXT NOT NULL,
+    notified BOOLEAN NOT NULL DEFAULT 0,
     division INTEGER,
     lp INTEGER,
     tier TEXT,
