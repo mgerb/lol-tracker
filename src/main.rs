@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+mod bot;
 mod db;
 mod dtos;
 mod facade;
@@ -7,11 +8,11 @@ mod op_gg_api;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenvy::dotenv().expect("Failed to load .env file");
+
     let mut facade = facade::Facade::new().await?;
 
-    facade.add_user("YeahIStealDogs").await?;
-
-    facade.start_workers().await?;
+    bot::start(facade).await?;
 
     Ok(())
 }
