@@ -1,12 +1,13 @@
 use anyhow::{Context as Ctx, Result};
-use serenity::model::prelude::{ChannelId, GuildId, Ready};
+use serenity::model::prelude::component::InputText;
+use serenity::model::prelude::{ChannelId, Guild, GuildId, Ready};
 use serenity::prelude::{Context, EventHandler, GatewayIntents, TypeMapKey};
 use std::env;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use serenity::framework::standard::macros::{command, group};
-use serenity::framework::standard::{CommandResult, StandardFramework};
+use serenity::framework::standard::{Args, CommandResult, StandardFramework};
 use serenity::model::channel::Message;
 use serenity::{async_trait, Client};
 
@@ -31,7 +32,7 @@ impl TypeMapKey for FacadeContainer {
 }
 
 #[group]
-#[commands(ping)]
+#[commands(delete_user, add_user, init)]
 struct General;
 
 struct Handler;
@@ -42,11 +43,31 @@ impl EventHandler for Handler {
         println!("{} is connected!", _data_about_bot.user.name);
     }
 
-    async fn cache_ready(&self, _ctx: Context, _guilds: Vec<GuildId>) {
+    async fn cache_ready(&self, ctx: Context, _guilds: Vec<GuildId>) {
         let facade;
-        generate_facade_code!(_ctx, facade);
+        generate_facade_code!(ctx, facade);
 
-        facade.start_workers(_ctx.http.clone());
+        facade.start_workers(ctx.http.clone());
+    }
+
+    async fn guild_create(&self, ctx: Context, guild: Guild, _is_new: bool) {
+        let facade;
+        generate_facade_code!(ctx, facade);
+
+        // copy guild name String
+        let guild_name = guild.name.clone();
+
+        match facade
+            .init_guild_channel(guild.id.0 as i64, None, guild.name)
+            .await
+        {
+            Ok(_) => {
+                println!("Guild initialized: {} - {}", guild_name, guild.id.0);
+            }
+            Err(e) => {
+                println!("Error initializing channel: {}", e);
+            }
+        }
     }
 }
 
@@ -81,8 +102,65 @@ pub async fn start(facade: Facade) -> Result<()> {
 }
 
 #[command]
-async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
-    msg.reply(ctx, "Pong!").await?;
+#[description("Initialize the guild chat channel")]
+async fn init(ctx: &Context, msg: &Message) -> CommandResult {
+    let facade;
+    generate_facade_code!(ctx, facade);
+
+    let guild = msg.guild(&ctx.cache).context("No guild found")?;
+    let channel_id = msg.channel_id.0;
+
+    match facade
+        .init_guild_channel(guild.id.0 as i64, Some(channel_id as i64), guild.name)
+        .await
+    {
+        Ok(_) => {
+            msg.reply(ctx, "Channel initialized!").await?;
+        }
+        Err(e) => {
+            msg.reply(ctx, format!("Error initializing channel: {}", e))
+                .await?;
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
+#[aliases("addUser")]
+async fn add_user(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let facade;
+    generate_facade_code!(ctx, facade);
+
+    let guild_id = msg.guild_id.context("No guild id found")?.0 as i64;
+
+    match facade.add_user(args.rest(), guild_id).await {
+        Ok(_) => {
+            msg.reply(ctx, "User added!").await?;
+        }
+        Err(e) => {
+            msg.reply(ctx, format!("Error adding user: {}", e)).await?;
+        }
+    }
+
+    Ok(())
+}
+
+#[command]
+#[aliases("deleteUser")]
+async fn delete_user(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let facade;
+    generate_facade_code!(ctx, facade);
+
+    match facade.delete_user(args.rest()).await {
+        Ok(_) => {
+            msg.reply(ctx, "User deleted!").await?;
+        }
+        Err(e) => {
+            msg.reply(ctx, format!("Error deleting user: {}", e))
+                .await?;
+        }
+    }
 
     Ok(())
 }

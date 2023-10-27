@@ -10,7 +10,7 @@ mod op_gg_api;
 async fn main() -> Result<()> {
     dotenvy::dotenv().expect("Failed to load .env file");
 
-    let mut facade = facade::Facade::new().await?;
+    let facade = facade::Facade::new().await?;
 
     bot::start(facade).await?;
 

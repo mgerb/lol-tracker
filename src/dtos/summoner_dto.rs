@@ -5,7 +5,9 @@ use sqlx::{Pool, Sqlite};
 pub struct SummonerDto {
     pub id: String,
     pub name: String,
-    pub created_at: Option<chrono::NaiveDateTime>,
+    pub guild_id: i64,
+    pub created_at: Option<i64>,
+    pub updated_at: Option<i64>,
 }
 
 impl SummonerDto {
@@ -14,12 +16,14 @@ impl SummonerDto {
             r#"
             INSERT OR IGNORE INTO summoner (
                 id,
-                name
+                name,
+                guild_id
                 )
-            VALUES (?, ?);
+            VALUES (?, ?, ?);
             "#,
             self.id,
             self.name,
+            self.guild_id
         )
         .execute(pool)
         .await
@@ -35,5 +39,24 @@ impl SummonerDto {
             .context("failed to query summoners")?;
 
         Ok(summoners)
+    }
+
+    pub async fn delete(pool: &Pool<Sqlite>, summoner_name: &str) -> Result<()> {
+        sqlx::query!(
+            r#"
+            DELETE FROM game
+            WHERE summoner_id = (SELECT id FROM summoner WHERE name = ?);
+
+            DELETE FROM summoner
+            WHERE name = ?;
+            "#,
+            summoner_name,
+            summoner_name,
+        )
+        .execute(pool)
+        .await
+        .context("failed to delete summoner")?;
+
+        Ok(())
     }
 }

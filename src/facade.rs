@@ -5,7 +5,11 @@ use serenity::{http::Http, model::prelude::ChannelId};
 use sqlx::{Pool, Sqlite};
 use tokio::task::JoinSet;
 
-use crate::{db, dtos::summoner_dto::SummonerDto, op_gg_api};
+use crate::{
+    db,
+    dtos::{guild_dto::GuildDto, summoner_dto::SummonerDto},
+    op_gg_api,
+};
 
 /// Facade to interact with database and op.gg api
 pub struct Facade {
@@ -23,10 +27,29 @@ impl Facade {
         })
     }
 
-    pub async fn add_user(&self, summoner_name: &str) -> Result<()> {
-        let summoner = op_gg_api::get_summoner(summoner_name).await?.to_dto();
+    pub async fn init_guild_channel(
+        &self,
+        guild_id: i64,
+        chat_channel_id: Option<i64>,
+        name: String,
+    ) -> Result<()> {
+        GuildDto::new(guild_id, chat_channel_id, name)
+            .update(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn add_user(&self, summoner_name: &str, guild_id: i64) -> Result<()> {
+        let summoner = op_gg_api::get_summoner(summoner_name)
+            .await?
+            .to_dto(guild_id);
 
         summoner.create(&self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn delete_user(&self, summoner_name: &str) -> Result<()> {
+        SummonerDto::delete(&self.pool, summoner_name).await?;
         Ok(())
     }
 

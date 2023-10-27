@@ -10,11 +10,13 @@ pub struct SummonerResponse {
 }
 
 impl SummonerResponse {
-    pub fn to_dto(self) -> SummonerDto {
+    pub fn to_dto(self, guild_id: i64) -> SummonerDto {
         SummonerDto {
             id: self.id,
+            guild_id,
             name: self.name,
             created_at: None,
+            updated_at: None,
         }
     }
 }
@@ -104,7 +106,10 @@ impl GameResponse {
         GameDto {
             id: self.id,
             summoner_id: self.myData.summoner.summoner_id,
-            created_at: self.created_at.naive_utc(),
+            game_created_at: self.created_at.timestamp(),
+            created_at: None,
+            updated_at: None,
+            notified: false,
             champion_id: self.myData.champion_id,
             assists: self.myData.stats.assist,
             deaths: self.myData.stats.death,

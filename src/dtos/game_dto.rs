@@ -1,16 +1,18 @@
 use anyhow::{Context, Result};
-use chrono::NaiveDateTime;
 use sqlx::{Pool, Sqlite};
 
 pub struct GameDto {
     pub id: String,
     pub summoner_id: String,
-    pub created_at: NaiveDateTime,
+    pub created_at: Option<i64>,
+    pub updated_at: Option<i64>,
+    pub game_created_at: i64,
     pub champion_id: i64,
     pub assists: i64,
     pub deaths: i64,
     pub kills: i64,
     pub result: String,
+    pub notified: bool,
     pub division: Option<i64>,
     pub lp: Option<i64>,
     pub tier: Option<String>,
@@ -25,7 +27,7 @@ impl GameDto {
             INSERT OR IGNORE INTO game (
                 id,
                 summoner_id,
-                created_at,
+                game_created_at,
                 champion_id,
                 assists,
                 deaths,
@@ -35,13 +37,14 @@ impl GameDto {
                 lp,
                 tier,
                 border_image_url,
-                tier_image_url
+                tier_image_url,
+                notified
                 )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             "#,
             self.id,
             self.summoner_id,
-            self.created_at,
+            self.game_created_at,
             self.champion_id,
             self.assists,
             self.deaths,
@@ -51,12 +54,22 @@ impl GameDto {
             self.lp,
             self.tier,
             self.border_image_url,
-            self.tier_image_url
+            self.tier_image_url,
+            self.notified
         )
         .execute(pool)
         .await
         .context("failed to insert game")?;
 
         Ok(())
+    }
+
+    pub async fn get_all(pool: &Pool<Sqlite>) -> Result<Vec<GameDto>> {
+        let games = sqlx::query_as!(GameDto, "SELECT * FROM game")
+            .fetch_all(pool)
+            .await
+            .context("failed to query game")?;
+
+        Ok(games)
     }
 }
