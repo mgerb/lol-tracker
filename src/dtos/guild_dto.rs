@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use sqlx::{Pool, Sqlite};
 
+#[derive(Debug, sqlx::FromRow)]
 pub struct GuildDto {
     pub id: i64,
     pub chat_channel_id: Option<i64>,
@@ -20,7 +21,7 @@ impl GuildDto {
         }
     }
 
-    pub async fn create(&self, pool: &Pool<Sqlite>) -> Result<()> {
+    pub async fn insert_or_ignore(&self, pool: &Pool<Sqlite>) -> Result<()> {
         sqlx::query!(
             r#"
             INSERT OR IGNORE INTO guild (

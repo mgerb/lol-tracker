@@ -7,6 +7,12 @@ use crate::dtos::{game_dto::GameDto, summoner_dto::SummonerDto};
 pub struct SummonerResponse {
     pub id: String,
     pub name: String,
+    pub solo_tier: Option<String>,
+    pub solo_lp: Option<i64>,
+    pub solo_division: Option<i64>,
+    pub flex_tier: Option<String>,
+    pub flex_lp: Option<i64>,
+    pub flex_division: Option<i64>,
 }
 
 impl SummonerResponse {
@@ -17,6 +23,12 @@ impl SummonerResponse {
             name: self.name,
             created_at: None,
             updated_at: None,
+            solo_tier: self.solo_tier,
+            solo_lp: self.solo_lp,
+            solo_division: self.solo_division,
+            flex_tier: self.flex_tier,
+            flex_lp: self.flex_lp,
+            flex_division: self.flex_division,
         }
     }
 }
@@ -63,10 +75,34 @@ pub async fn get_summoner(name: &str) -> Result<SummonerResponse> {
     let summoner_id = json["pageProps"]["data"]["summoner_id"]
         .as_str()
         .context("get_summoner: name not found")?;
+    let solo_tier = json["pageProps"]["data"]["league_stats"][0]["tier_info"]["tier"]
+        .as_str()
+        .or(None);
+    let solo_lp = json["pageProps"]["data"]["league_stats"][0]["tier_info"]["lp"]
+        .as_i64()
+        .or(None);
+    let solo_division = json["pageProps"]["data"]["league_stats"][0]["tier_info"]["division"]
+        .as_i64()
+        .or(None);
+    let flex_tier = json["pageProps"]["data"]["league_stats"][1]["tier_info"]["tier"]
+        .as_str()
+        .or(None);
+    let flex_lp = json["pageProps"]["data"]["league_stats"][1]["tier_info"]["lp"]
+        .as_i64()
+        .or(None);
+    let flex_division = json["pageProps"]["data"]["league_stats"][1]["tier_info"]["division"]
+        .as_i64()
+        .or(None);
 
     Ok(SummonerResponse {
         id: summoner_id.to_string(),
         name: name.to_string(),
+        solo_tier: solo_tier.map(|s| s.to_string()),
+        solo_lp,
+        solo_division,
+        flex_tier: flex_tier.map(|s| s.to_string()),
+        flex_lp,
+        flex_division,
     })
 }
 

@@ -5,6 +5,12 @@ CREATE TABLE IF NOT EXISTS summoner (
     name TEXT COLLATE NOCASE NOT NULL,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    solo_tier TEXT,
+    solo_lp INTEGER,
+    solo_division INTEGER,
+    flex_tier TEXT,
+    flex_lp INTEGER,
+    flex_division INTEGER,
 
     FOREIGN KEY (guild_id) REFERENCES guild (id)
 );

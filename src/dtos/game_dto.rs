@@ -21,7 +21,7 @@ pub struct GameDto {
 }
 
 impl GameDto {
-    pub async fn create(&self, pool: &Pool<Sqlite>) -> Result<()> {
+    pub async fn insert_or_ignore(&self, pool: &Pool<Sqlite>) -> Result<()> {
         sqlx::query!(
             r#"
             INSERT OR IGNORE INTO game (
@@ -60,6 +60,49 @@ impl GameDto {
         .execute(pool)
         .await
         .context("failed to insert game")?;
+
+        Ok(())
+    }
+
+    pub async fn upsert(&self, pool: &Pool<Sqlite>) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT OR REPLACE INTO game (
+                id,
+                summoner_id,
+                game_created_at,
+                champion_id,
+                assists,
+                deaths,
+                kills,
+                result,
+                division,
+                lp,
+                tier,
+                border_image_url,
+                tier_image_url,
+                notified
+                )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            "#,
+            self.id,
+            self.summoner_id,
+            self.game_created_at,
+            self.champion_id,
+            self.assists,
+            self.deaths,
+            self.kills,
+            self.result,
+            self.division,
+            self.lp,
+            self.tier,
+            self.border_image_url,
+            self.tier_image_url,
+            self.notified
+        )
+        .execute(pool)
+        .await
+        .context("failed to upsert game")?;
 
         Ok(())
     }

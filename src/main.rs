@@ -12,6 +12,8 @@ async fn main() -> Result<()> {
 
     let facade = facade::Facade::new().await?;
 
+    facade.startup_tasks().await?;
+
     bot::start(facade).await?;
 
     Ok(())

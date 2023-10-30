@@ -57,15 +57,12 @@ impl EventHandler for Handler {
         // copy guild name String
         let guild_name = guild.name.clone();
 
-        match facade
-            .init_guild_channel(guild.id.0 as i64, None, guild.name)
-            .await
-        {
-            Ok(_) => {
-                println!("Guild initialized: {} - {}", guild_name, guild.id.0);
-            }
+        match facade.init_guild(guild.id.0 as i64, None, guild.name).await {
+            Ok(_) => {}
             Err(e) => {
-                println!("Error initializing channel: {}", e);
+                let _ = facade
+                    .log_error(&format!("Error initializing guild: {} - {}", e, guild_name))
+                    .await;
             }
         }
     }
@@ -111,7 +108,7 @@ async fn init(ctx: &Context, msg: &Message) -> CommandResult {
     let channel_id = msg.channel_id.0;
 
     match facade
-        .init_guild_channel(guild.id.0 as i64, Some(channel_id as i64), guild.name)
+        .update_guild_channel(guild.id.0 as i64, Some(channel_id as i64), guild.name)
         .await
     {
         Ok(_) => {
