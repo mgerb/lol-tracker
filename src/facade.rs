@@ -1,11 +1,17 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use serenity::{http::Http, model::prelude::ChannelId};
+use serenity::{
+    builder::CreateEmbed,
+    http::Http,
+    model::{prelude::ChannelId, Timestamp},
+    utils::Colour,
+};
 use sqlx::{Pool, Sqlite};
 use tokio::task::JoinSet;
 
 use crate::{
+    api_strategy::{self, ApiStrategy},
     db,
     dtos::{game_dto::GameDto, guild_dto::GuildDto, log_dto::LogDto, summoner_dto::SummonerDto},
     op_gg_api,
@@ -15,15 +21,17 @@ use crate::{
 pub struct Facade {
     pool: Pool<Sqlite>,
     join_set: JoinSet<Result<()>>,
+    api_strategy: Arc<dyn ApiStrategy>,
 }
 
 impl Facade {
     /// Create a new Facade
-    pub async fn new() -> Result<Self> {
+    pub async fn new(api_strategy: Arc<dyn ApiStrategy>) -> Result<Self> {
         let pool = db::create_db().await?;
         Ok(Self {
             pool,
             join_set: JoinSet::new(),
+            api_strategy,
         })
     }
 
@@ -69,11 +77,10 @@ impl Facade {
         let summoners = SummonerDto::get_all(&self.pool).await?;
 
         for s in summoners {
-            let games = op_gg_api::get_games(s.id.as_str()).await?;
-            for game in games {
-                let mut game_dto = game.to_dto();
-                game_dto.notified = true;
-                game_dto.upsert(&self.pool).await?;
+            let games = self.api_strategy.get_games(s.id.as_str()).await?;
+            for mut game in games {
+                game.notified = true;
+                game.upsert(&self.pool).await?;
             }
         }
 
@@ -86,18 +93,18 @@ impl Facade {
     /// - set all games to notified
     /// - insert games into database
     pub async fn add_user(&self, summoner_name: &str, guild_id: i64) -> Result<()> {
-        let summoner = op_gg_api::get_summoner(summoner_name)
-            .await?
-            .to_dto(guild_id);
+        let summoner = self
+            .api_strategy
+            .get_summoner(summoner_name, guild_id)
+            .await?;
 
         summoner.insert_or_ignore(&self.pool).await?;
 
         // Fetch all games for the user and set to notified
-        let games = op_gg_api::get_games(summoner.id.as_str()).await?;
-        for game in games {
-            let mut game_dto = game.to_dto();
-            game_dto.notified = true;
-            game_dto.upsert(&self.pool).await?;
+        let games = self.api_strategy.get_games(summoner.id.as_str()).await?;
+        for mut game in games {
+            game.notified = true;
+            game.upsert(&self.pool).await?;
         }
 
         Ok(())
@@ -113,9 +120,10 @@ impl Facade {
     pub fn start_workers(&mut self, http: Arc<Http>) {
         let pool1 = self.pool.clone();
         let pool2 = self.pool.clone();
+        let api_strategy = self.api_strategy.clone();
 
         self.join_set
-            .spawn(async move { Self::start_summoner_api_worker(pool1).await });
+            .spawn(async move { Self::start_summoner_api_worker(api_strategy, pool1).await });
         self.join_set
             .spawn(async move { Self::start_game_watcher_worker(pool2, http).await });
     }
@@ -132,7 +140,7 @@ impl Facade {
                     .await?;
                 }
             }
-            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(180)).await;
         }
     }
 
@@ -142,21 +150,51 @@ impl Facade {
         for s in summoners {
             let games = s.get_unnotified_games(&pool).await?;
             let guild = s.get_guild(&pool).await?;
+            let tier = s.tier.unwrap_or("".to_string());
+            let division = s.division.unwrap_or("".to_string());
+            let lp = s.lp.unwrap_or(0);
 
             for mut game in games {
                 if let Some(chat_channel_id) = guild.chat_channel_id {
-                    let message = format!(
-                        r#"
-                        User: {}
-                        LP: {:?}
-                        Result: {}
-                        Score: {} / {} / {}
-                        "#,
-                        s.name, game.lp, game.result, game.kills, game.deaths, game.assists
-                    );
+                    let mut embed = CreateEmbed::default();
+                    let color = if game.win {
+                        Colour::new(0x15e55a)
+                    } else {
+                        Colour::new(0xe55a5a)
+                    };
+
+                    embed
+                        .title("Victory")
+                        .url("TODO:")
+                        .description(format!(
+                            "YeahIStealDogs - {} league point(s)! ({} {} {} lp)",
+                            game.lp_change.unwrap_or(0),
+                            tier,
+                            division,
+                            lp
+                        ))
+                        .color(color)
+                        .timestamp(Timestamp::from_unix_timestamp(game.game_created_at)?)
+                        .author(|a| {
+                            a.name("Game Results")
+                            // .icon_url(format!("http://ddragon.leagueoflegends.com/cdn/13.21.1/img/champion/{}.png", game.champion_name))
+                        })
+                        .fields(vec![
+                            (
+                                "Score",
+                                format!("{}/{}/{}", game.kills, game.deaths, game.assists),
+                                true,
+                            ),
+                            ("Champion", game.champion_name.clone(), true),
+                            ("Queue", game.game_mode.clone(), true),
+                        ])
+                        .thumbnail(format!(
+                            "http://ddragon.leagueoflegends.com/cdn/13.21.1/img/champion/{}.png",
+                            game.champion_name
+                        ));
 
                     ChannelId(chat_channel_id as u64)
-                        .say(&http, message)
+                        .send_message(&http, |m| m.set_embed(embed))
                         .await
                         .context(format!(
                             "Unable to notify channel {} for guild {}",
@@ -179,9 +217,12 @@ impl Facade {
     }
 
     /// - start summoner worker to run every minute
-    async fn start_summoner_api_worker(pool: Pool<Sqlite>) -> Result<()> {
+    async fn start_summoner_api_worker(
+        api_strategy: Arc<dyn ApiStrategy>,
+        pool: Pool<Sqlite>,
+    ) -> Result<()> {
         loop {
-            match Self::summoner_api_worker(&pool).await {
+            match Self::summoner_api_worker(api_strategy.clone(), &pool).await {
                 Ok(_) => {}
                 Err(e) => {
                     LogDto::error(
@@ -198,20 +239,23 @@ impl Facade {
     /// - fetch all summoners from database
     /// - fetch all games for each summoner
     /// - insert or ignore games into database
-    async fn summoner_api_worker(pool: &Pool<Sqlite>) -> Result<()> {
+    async fn summoner_api_worker(
+        api_strategy: Arc<dyn ApiStrategy>,
+        pool: &Pool<Sqlite>,
+    ) -> Result<()> {
         let summoners = SummonerDto::get_all(&pool).await?;
 
         for s in summoners {
             // Fetch summoner and update stats
-            op_gg_api::get_summoner(s.name.as_str())
+            api_strategy
+                .get_summoner(s.name.as_str(), s.guild_id)
                 .await?
-                .to_dto(s.guild_id)
                 .upsert(&pool)
                 .await?;
 
-            let games = op_gg_api::get_games(s.id.as_str()).await?;
+            let games = api_strategy.get_games(s.id.as_str()).await?;
             for game in games {
-                game.to_dto().insert_or_ignore(&pool).await?;
+                game.insert_or_ignore(&pool).await?;
             }
         }
 

@@ -5,17 +5,15 @@ CREATE TABLE IF NOT EXISTS game (
     game_created_at INTEGER NOT NULL, -- riot timestamp
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-    champion_id INTEGER NOT NULL,
     assists INTEGER NOT NULL,
     deaths INTEGER NOT NULL,
     kills INTEGER NOT NULL,
-    result TEXT NOT NULL,
+    win BOOLEAN NOT NULL,
     notified BOOLEAN NOT NULL DEFAULT 0,
-    division INTEGER,
-    lp INTEGER,
-    tier TEXT,
-    tier_image_url TEXT,
-    border_image_url TEXT,
+    champion_name TEXT NOT NULL,
+    game_mode TEXT NOT NULL,
+    lp_change INTEGER,
+    promotion_text TEXT,
 
     FOREIGN KEY (summoner_id) REFERENCES summoner (id)
 );

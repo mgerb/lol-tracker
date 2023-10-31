@@ -12,12 +12,10 @@ pub struct SummonerDto {
     pub guild_id: i64,
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
-    pub solo_tier: Option<String>,
-    pub solo_lp: Option<i64>,
-    pub solo_division: Option<i64>,
-    pub flex_tier: Option<String>,
-    pub flex_lp: Option<i64>,
-    pub flex_division: Option<i64>,
+    pub queue_type: Option<String>,
+    pub tier: Option<String>,
+    pub lp: Option<i64>,
+    pub division: Option<String>,
 }
 
 impl SummonerDto {
@@ -28,24 +26,20 @@ impl SummonerDto {
                 id,
                 name,
                 guild_id,
-                solo_tier,
-                solo_lp,
-                solo_division,
-                flex_tier,
-                flex_lp,
-                flex_division
+                queue_type,
+                tier,
+                lp,
+                division
                 )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?);
             "#,
             self.id,
             self.name,
             self.guild_id,
-            self.solo_tier,
-            self.solo_lp,
-            self.solo_division,
-            self.flex_tier,
-            self.flex_lp,
-            self.flex_division,
+            self.queue_type,
+            self.tier,
+            self.lp,
+            self.division,
         )
         .execute(pool)
         .await
@@ -61,24 +55,20 @@ impl SummonerDto {
                 id,
                 name,
                 guild_id,
-                solo_tier,
-                solo_lp,
-                solo_division,
-                flex_tier,
-                flex_lp,
-                flex_division
+                queue_type,
+                tier,
+                lp,
+                division
                 )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?);
             "#,
             self.id,
             self.name,
             self.guild_id,
-            self.solo_tier,
-            self.solo_lp,
-            self.solo_division,
-            self.flex_tier,
-            self.flex_lp,
-            self.flex_division,
+            self.queue_type,
+            self.tier,
+            self.lp,
+            self.division,
         )
         .execute(pool)
         .await

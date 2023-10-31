@@ -1,23 +1,22 @@
 use anyhow::{Context, Result};
 use sqlx::{Pool, Sqlite};
 
+#[derive(Debug, sqlx::FromRow)]
 pub struct GameDto {
     pub id: String,
     pub summoner_id: String,
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
     pub game_created_at: i64,
-    pub champion_id: i64,
     pub assists: i64,
     pub deaths: i64,
     pub kills: i64,
-    pub result: String,
+    pub win: bool,
     pub notified: bool,
-    pub division: Option<i64>,
-    pub lp: Option<i64>,
-    pub tier: Option<String>,
-    pub border_image_url: Option<String>,
-    pub tier_image_url: Option<String>,
+    pub champion_name: String,
+    pub game_mode: String,
+    pub lp_change: Option<i64>,
+    pub promotion_text: Option<String>,
 }
 
 impl GameDto {
@@ -28,34 +27,28 @@ impl GameDto {
                 id,
                 summoner_id,
                 game_created_at,
-                champion_id,
                 assists,
                 deaths,
                 kills,
-                result,
-                division,
-                lp,
-                tier,
-                border_image_url,
-                tier_image_url,
-                notified
+                win,
+                lp_change,
+                champion_name,
+                game_mode,
+                promotion_text
                 )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             "#,
             self.id,
             self.summoner_id,
             self.game_created_at,
-            self.champion_id,
             self.assists,
             self.deaths,
             self.kills,
-            self.result,
-            self.division,
-            self.lp,
-            self.tier,
-            self.border_image_url,
-            self.tier_image_url,
-            self.notified
+            self.win,
+            self.lp_change,
+            self.champion_name,
+            self.game_mode,
+            self.promotion_text
         )
         .execute(pool)
         .await
@@ -71,34 +64,28 @@ impl GameDto {
                 id,
                 summoner_id,
                 game_created_at,
-                champion_id,
                 assists,
                 deaths,
                 kills,
-                result,
-                division,
-                lp,
-                tier,
-                border_image_url,
-                tier_image_url,
-                notified
+                win,
+                lp_change,
+                champion_name,
+                game_mode,
+                promotion_text
                 )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             "#,
             self.id,
             self.summoner_id,
             self.game_created_at,
-            self.champion_id,
             self.assists,
             self.deaths,
             self.kills,
-            self.result,
-            self.division,
-            self.lp,
-            self.tier,
-            self.border_image_url,
-            self.tier_image_url,
-            self.notified
+            self.win,
+            self.lp_change,
+            self.champion_name,
+            self.game_mode,
+            self.promotion_text
         )
         .execute(pool)
         .await

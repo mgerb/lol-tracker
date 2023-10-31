@@ -1,10 +1,36 @@
+/// DEPRECATED - op.gg api does not update fast enough
+///
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use regex::Regex;
+use reqwest::header::CACHE_CONTROL;
 use serde::{Deserialize, Serialize};
 
-use crate::dtos::{game_dto::GameDto, summoner_dto::SummonerDto};
+use crate::{
+    api_strategy::ApiStrategy,
+    dtos::{game_dto::GameDto, summoner_dto::SummonerDto},
+};
 
-pub struct SummonerResponse {
+pub struct OpGGApiStrategy;
+
+#[async_trait]
+impl ApiStrategy for OpGGApiStrategy {
+    async fn get_summoner(&self, summoner_name: &str, guild_id: i64) -> Result<SummonerDto> {
+        let summoner = get_summoner(summoner_name).await?.to_dto(guild_id);
+        Ok(summoner)
+    }
+
+    async fn get_games(&self, summoner_id: &str) -> Result<Vec<GameDto>> {
+        let games = get_games(summoner_id).await?;
+        let mut game_dtos: Vec<GameDto> = vec![];
+        for g in games {
+            game_dtos.push(g.to_dto());
+        }
+        Ok(game_dtos)
+    }
+}
+
+struct SummonerResponse {
     pub id: String,
     pub name: String,
     pub solo_tier: Option<String>,
@@ -23,12 +49,10 @@ impl SummonerResponse {
             name: self.name,
             created_at: None,
             updated_at: None,
-            solo_tier: self.solo_tier,
-            solo_lp: self.solo_lp,
-            solo_division: self.solo_division,
-            flex_tier: self.flex_tier,
-            flex_lp: self.flex_lp,
-            flex_division: self.flex_division,
+            queue_type: None,
+            lp: None,
+            tier: None,
+            division: None,
         }
     }
 }
@@ -36,8 +60,12 @@ impl SummonerResponse {
 /// op.gg uses what looks like some random version string
 /// for some requests. This string is appended to the script
 /// URLs in the HTML so we can just grab it from there.
-pub async fn get_api_key() -> Result<String> {
-    let body = reqwest::get("https://www.op.gg".to_string())
+async fn get_api_key() -> Result<String> {
+    let client = reqwest::Client::new();
+    let body = client
+        .get("https://www.op.gg".to_string())
+        .header(CACHE_CONTROL, "max-age=0")
+        .send()
         .await
         .context("get_api_key: request failed")?
         .text()
@@ -57,17 +85,21 @@ pub async fn get_api_key() -> Result<String> {
     Ok(api_key)
 }
 
-pub async fn get_summoner(name: &str) -> Result<SummonerResponse> {
+async fn get_summoner(name: &str) -> Result<SummonerResponse> {
     let api_key = get_api_key().await?;
-    let body = reqwest::get(format!(
-        "https://www.op.gg/_next/data/{}/en_US/summoners/na/{}.json?region=na&summoner={}",
-        api_key, name, name
-    ))
-    .await
-    .context("get_summoner: request failed")?
-    .text()
-    .await
-    .context("get_summoner: request text failed")?;
+    let client = reqwest::Client::new();
+    let body = client
+        .get(format!(
+            "https://www.op.gg/_next/data/{}/en_US/summoners/na/{}.json?region=na&summoner={}",
+            api_key, name, name
+        ))
+        .header(CACHE_CONTROL, "max-age=0")
+        .send()
+        .await
+        .context("get_summoner: request failed")?
+        .text()
+        .await
+        .context("get_summoner: request text failed")?;
 
     let json: serde_json::Value =
         serde_json::from_str(&body).context("get_summoner: json parse failed")?;
@@ -106,8 +138,12 @@ pub async fn get_summoner(name: &str) -> Result<SummonerResponse> {
     })
 }
 
-pub async fn get_games(summoner_id: &str) -> Result<Vec<GameResponse>> {
-    let body = reqwest::get(format!("https://op.gg/api/v1.0/internal/bypass/games/na/summoners/{}?&limit=5&hl=en_US&game_type=total", summoner_id))
+async fn get_games(summoner_id: &str) -> Result<Vec<GameResponse>> {
+    let client = reqwest::Client::new();
+    let body = client
+        .get(format!("https://op.gg/api/v1.0/internal/bypass/games/na/summoners/{}?&limit=5&hl=en_US&game_type=total", summoner_id))
+        .header(CACHE_CONTROL, "max-age=0")
+        .send()
         .await
         .context("get_games: request failed")?
         .text()
@@ -131,7 +167,7 @@ pub async fn get_games(summoner_id: &str) -> Result<Vec<GameResponse>> {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct GameResponse {
+struct GameResponse {
     id: String,
     myData: MyData,
     created_at: chrono::DateTime<chrono::Utc>,
@@ -146,22 +182,20 @@ impl GameResponse {
             created_at: None,
             updated_at: None,
             notified: false,
-            champion_id: self.myData.champion_id,
             assists: self.myData.stats.assist,
             deaths: self.myData.stats.death,
             kills: self.myData.stats.kill,
-            result: self.myData.stats.result,
-            division: self.myData.tier_info.division,
-            lp: self.myData.tier_info.lp,
-            tier: self.myData.tier_info.tier,
-            border_image_url: self.myData.tier_info.border_image_url,
-            tier_image_url: self.myData.tier_info.tier_image_url,
+            lp_change: self.myData.tier_info.lp,
+            win: self.myData.stats.result == "win",
+            game_mode: "todo".into(),
+            champion_name: "todo".into(),
+            promotion_text: Some("todo".into()),
         }
     }
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct MyData {
+struct MyData {
     champion_id: i64,
     stats: MyDataStats,
     tier_info: TierInfo,
@@ -169,7 +203,7 @@ pub struct MyData {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct MyDataSummoner {
+struct MyDataSummoner {
     summoner_id: String,
     name: String,
     level: i64,
@@ -178,7 +212,7 @@ pub struct MyDataSummoner {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct MyDataStats {
+struct MyDataStats {
     assist: i64,
     death: i64,
     kill: i64,
@@ -186,7 +220,7 @@ pub struct MyDataStats {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct TierInfo {
+struct TierInfo {
     division: Option<i64>,
     lp: Option<i64>,
     tier: Option<String>,
