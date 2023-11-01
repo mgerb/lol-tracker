@@ -5,7 +5,7 @@ use scraper::{Element, Html, Selector};
 
 use crate::{
     api_strategy::ApiStrategy,
-    dtos::{game_dto::GameDto, summoner_dto::SummonerDto},
+    dtos::{active_game_dto::ActiveGameDto, game_dto::GameDto, summoner_dto::SummonerDto},
 };
 
 // declare global const string user agent
@@ -63,35 +63,41 @@ impl ApiStrategy for LogApiStrategy {
             .context("unable to select .leagueTier")?;
         let league_tier = val.inner_html();
         let league_tier: Vec<&str> = league_tier.trim().split(" ").collect();
-        let tier = league_tier.get(0).context("Unable to get tier")?;
-        let division = league_tier.get(1).context("Unable to get division")?;
+        let tier = league_tier.get(0).map(|s| s.to_string());
+        let division = league_tier.get(1).map(|s| s.to_string());
 
         let selector = self.get_selector(".queueLine .queue")?;
-        let val = container
+        let queue_type = container
             .select(&selector)
             .next()
-            .context("unable to select .queueLine .queue")?;
-        let queue_type = val.inner_html();
-        let queue_type = queue_type.trim();
+            .map(|val| val.inner_html().trim().to_string());
 
         let selector = self.get_selector(".league-points .leaguePoints")?;
-        let val = container
+        let lp = container
             .select(&selector)
             .next()
-            .context("unable to select .league-points .leaguePoints")?;
-        let lp = val.inner_html();
-        let lp = lp.trim();
+            .map(|val| val.inner_html().trim().to_string())
+            .map_or(None, |val| val.parse::<i64>().ok());
+
+        let selector = self.get_selector(".pageBanner .img img")?;
+
+        let summoner_name_formatted = html
+            .select(&selector)
+            .next()
+            .context("unable to select .pageBanner .img img")?
+            .attr("title")
+            .context("unable to get title")?;
 
         Ok(SummonerDto {
-            id: summoner_name.to_string(),
-            name: summoner_name.to_string(),
+            id: summoner_name_formatted.to_string(),
+            name: summoner_name_formatted.to_string(),
             guild_id,
             created_at: None,
             updated_at: None,
-            queue_type: Some(queue_type.to_string()),
-            lp: Some(lp.parse::<i64>().context("Unable to parse lp")?),
-            tier: Some(tier.to_string()),
-            division: Some(division.to_string()),
+            queue_type,
+            lp,
+            tier,
+            division,
         })
     }
 
@@ -206,6 +212,8 @@ impl ApiStrategy for LogApiStrategy {
                     .next()
                     .context("Unable to get capture")?;
                 let unix_date: i64 = (&capture[1]).parse()?;
+                // Divide because this is in milliseconds
+                let unix_date = unix_date / 1000;
 
                 let id = ele
                     .select(&id_selector)
@@ -235,5 +243,105 @@ impl ApiStrategy for LogApiStrategy {
         }
 
         Ok(games)
+    }
+
+    async fn get_active_game(
+        &self,
+        summoner_id: &str,
+        summoner_name: &str,
+    ) -> Result<Option<ActiveGameDto>> {
+        let url = format!(
+            "https://porofessor.gg/partial/live-partial/na/{}",
+            summoner_name
+        );
+
+        let client = reqwest::Client::new();
+        let body = client
+            .get(url)
+            .header("Cache-Control", "max-age=0")
+            .header("User-Agent", USER_AGENT)
+            .send()
+            .await
+            .context("get_active_game failed")?
+            .text()
+            .await
+            .context("get_active_game failed to get text")?;
+
+        let html = Html::parse_document(&body);
+        let summoner_card_selector =
+            self.get_selector(&format!(r#"div[data-summonername="{}"]"#, summoner_name))?;
+        let summoner_card = html.select(&summoner_card_selector).next();
+
+        // Return early if the summoner is not in a game
+        if (summoner_card.is_none()) {
+            return Ok(None);
+        }
+
+        let summoner_card = summoner_card.context("unable to select summoner card")?;
+
+        let champion_selector = self.get_selector(".imgColumn-champion>div img")?;
+        let champion = summoner_card
+            .select(&champion_selector)
+            .next()
+            .context("unable to select champion")?
+            .attr("alt")
+            .context("unable to get champion alt")?
+            .to_string();
+
+        let role_selector = self.get_selector("div.currentRole>img")?;
+        let role = summoner_card
+            .select(&role_selector)
+            .next()
+            .context("unable to select current role")?
+            .attr("alt")
+            .context("unable to get current role alt")?
+            .to_string();
+
+        let game_id_selector = self.get_selector("#spectate_button")?;
+        let game_id_link = html
+            .select(&game_id_selector)
+            .next()
+            .context("unable to select game id link")?;
+        let game_id = game_id_link
+            .attr("data-spectate-gameid")
+            .context("unable to get game id")?;
+        let spectate_link = game_id_link
+            .attr("data-spectate-link")
+            .context("unable to get game spectate link")?
+            .to_string();
+
+        let game_mode_selector = self.get_selector(".site-content-header>h2")?;
+        let game_mode = html
+            .select(&game_mode_selector)
+            .next()
+            .context("unable to select game mode")?
+            .text()
+            .next()
+            .context("unable to get game mode text")?
+            .trim()
+            .to_string();
+
+        let game_created_at_selector = self.get_selector("#gameDuration")?;
+
+        let game_created_at = html
+            .select(&game_created_at_selector)
+            .next()
+            .context("unable to select game duration")?
+            .attr("data-game-creation")
+            .context("unable to get game creation")?
+            .parse::<i64>()?
+            / 1000;
+
+        Ok(Some(ActiveGameDto {
+            id: game_id.to_string(),
+            game_mode,
+            game_created_at,
+            created_at: None,
+            summoner_id: summoner_id.to_string(),
+            champion,
+            role,
+            spectate_link,
+            notified: false,
+        }))
     }
 }

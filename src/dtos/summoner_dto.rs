@@ -86,6 +86,22 @@ impl SummonerDto {
         Ok(summoners)
     }
 
+    pub async fn get(pool: &Pool<Sqlite>, summoner_id: &str) -> Result<SummonerDto> {
+        let summoner = sqlx::query_as!(
+            SummonerDto,
+            r#"
+            SELECT * FROM summoner
+            WHERE id = ?;
+            "#,
+            summoner_id
+        )
+        .fetch_one(pool)
+        .await
+        .context("summoner_dto: failed to query summoner")?;
+
+        Ok(summoner)
+    }
+
     pub async fn delete(pool: &Pool<Sqlite>, summoner_name: &str) -> Result<()> {
         sqlx::query!(
             r#"
@@ -119,21 +135,5 @@ impl SummonerDto {
         .context("summoner_dto: failed to query guild")?;
 
         Ok(guild)
-    }
-
-    pub async fn get_unnotified_games(&self, pool: &Pool<Sqlite>) -> Result<Vec<GameDto>> {
-        let games = sqlx::query_as!(
-            GameDto,
-            r#"
-            SELECT * FROM game
-            WHERE summoner_id = ? AND notified = 0;
-            "#,
-            self.id
-        )
-        .fetch_all(pool)
-        .await
-        .context("summoner_dto: failed to query games")?;
-
-        Ok(games)
     }
 }

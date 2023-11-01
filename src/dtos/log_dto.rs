@@ -8,6 +8,7 @@ pub struct LogDto {
     pub created_at: Option<i64>,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum ErrorType {
     Info,
     Error,
@@ -17,7 +18,7 @@ impl Into<String> for ErrorType {
     fn into(self) -> String {
         match self {
             ErrorType::Info => "info".to_string(),
-            ErrorType::Error => "info".to_string(),
+            ErrorType::Error => "error".to_string(),
         }
     }
 }
@@ -53,14 +54,17 @@ impl LogDto {
     }
 
     pub async fn create(&self, pool: &Pool<Sqlite>) -> Result<()> {
+        let error_type: String = self.error_type.into();
         sqlx::query!(
             r#"
             INSERT INTO log (
-               message 
+               message,
+               error_type
                 )
-            VALUES (?);
+            VALUES (?, ?);
             "#,
             self.message,
+            error_type
         )
         .execute(pool)
         .await

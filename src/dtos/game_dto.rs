@@ -31,12 +31,13 @@ impl GameDto {
                 deaths,
                 kills,
                 win,
+                notified,
                 lp_change,
                 champion_name,
                 game_mode,
                 promotion_text
                 )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             "#,
             self.id,
             self.summoner_id,
@@ -45,6 +46,7 @@ impl GameDto {
             self.deaths,
             self.kills,
             self.win,
+            self.notified,
             self.lp_change,
             self.champion_name,
             self.game_mode,
@@ -68,12 +70,13 @@ impl GameDto {
                 deaths,
                 kills,
                 win,
+                notified,
                 lp_change,
                 champion_name,
                 game_mode,
                 promotion_text
                 )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             "#,
             self.id,
             self.summoner_id,
@@ -82,6 +85,7 @@ impl GameDto {
             self.deaths,
             self.kills,
             self.win,
+            self.notified,
             self.lp_change,
             self.champion_name,
             self.game_mode,
@@ -101,5 +105,38 @@ impl GameDto {
             .context("failed to query game")?;
 
         Ok(games)
+    }
+
+    pub async fn get_unnotified_games_for_summoner(
+        pool: &Pool<Sqlite>,
+        summoner_id: &str,
+    ) -> Result<Vec<GameDto>> {
+        let games = sqlx::query_as!(
+            GameDto,
+            r#"
+            SELECT * FROM game
+            WHERE summoner_id = ? AND notified = 0;
+            "#,
+            summoner_id
+        )
+        .fetch_all(pool)
+        .await
+        .context("summoner_dto: failed to query games")?;
+
+        Ok(games)
+    }
+
+    pub async fn set_all_notified(pool: &Pool<Sqlite>) -> Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE game
+            SET notified = 1;
+            "#
+        )
+        .execute(pool)
+        .await
+        .context("failed to set all games to notified")?;
+
+        Ok(())
     }
 }

@@ -1,6 +1,6 @@
 -- Add up migration script here
 CREATE TABLE IF NOT EXISTS summoner (
-    id TEXT NOT NULL PRIMARY KEY,
+    id TEXT COLLATE NOCASE NOT NULL PRIMARY KEY,
     guild_id INTEGER NOT NULL,
     name TEXT COLLATE NOCASE NOT NULL,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),

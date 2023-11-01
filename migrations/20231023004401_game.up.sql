@@ -1,7 +1,7 @@
 -- Add up migration script here
 CREATE TABLE IF NOT EXISTS game (
     id TEXT NOT NULL PRIMARY KEY,
-    summoner_id TEXT NOT NULL,
+    summoner_id TEXT COLLATE NOCASE NOT NULL,
     game_created_at INTEGER NOT NULL, -- riot timestamp
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
