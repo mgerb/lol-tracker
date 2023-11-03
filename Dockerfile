@@ -13,6 +13,9 @@ FROM debian:bookworm
 # copy over the build artifact
 COPY --from=0 /home/target/release/lol-tracker /bot/lol-tracker
 
+RUN apt update
+RUN apt install -y libssl-dev curl
+
 WORKDIR /bot
 
 # run the binary

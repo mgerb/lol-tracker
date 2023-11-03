@@ -12,7 +12,7 @@ mod op_gg_api;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenvy::dotenv().expect("Failed to load .env file");
+    let _ = dotenvy::dotenv();
 
     let facade = facade::Facade::new(Arc::new(log_api::LogApiStrategy)).await?;
 

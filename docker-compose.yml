@@ -4,4 +4,5 @@ services:
   mg-discord-rs:
     build: .
     env_file: .env
-    volumes: ./db.sqlite:/bot/db.sqlite
+    volumes:
+      - ./db.sqlite:/bot/db.sqlite
