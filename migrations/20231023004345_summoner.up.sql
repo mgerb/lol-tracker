@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS summoner (
     tier TEXT,
     lp INTEGER,
     division TEXT,
+    icon_url TEXT NOT NULL,
 
     FOREIGN KEY (guild_id) REFERENCES guild (id)
 );

@@ -1,6 +1,6 @@
 use anyhow::{Context as Ctx, Result};
 use serenity::model::prelude::component::InputText;
-use serenity::model::prelude::{ChannelId, Guild, GuildId, Ready};
+use serenity::model::prelude::{ChannelId, Guild, GuildId, ReactionType, Ready};
 use serenity::prelude::{Context, EventHandler, GatewayIntents, TypeMapKey};
 use std::env;
 use std::sync::Arc;
@@ -130,6 +130,9 @@ async fn add_user(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     generate_facade_code!(ctx, facade);
 
     let guild_id = msg.guild_id.context("No guild id found")?.0 as i64;
+
+    msg.react(&ctx.http, ReactionType::Unicode("👍".to_string()))
+        .await?;
 
     match facade.add_user(args.rest(), guild_id).await {
         Ok(_) => {

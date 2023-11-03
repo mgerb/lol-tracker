@@ -79,14 +79,22 @@ impl ApiStrategy for LogApiStrategy {
             .map(|val| val.inner_html().trim().to_string())
             .map_or(None, |val| val.parse::<i64>().ok());
 
-        let selector = self.get_selector(".pageBanner .img img")?;
+        let summoner_img_selector = self.get_selector(".pageBanner .img img")?;
 
         let summoner_name_formatted = html
-            .select(&selector)
+            .select(&summoner_img_selector)
             .next()
             .context("unable to select .pageBanner .img img")?
             .attr("title")
             .context("unable to get title")?;
+
+        let icon_url = html
+            .select(&summoner_img_selector)
+            .next()
+            .context("unable to select .pageBanner .img img")?
+            .attr("src")
+            .context("unable to get src")?
+            .to_string();
 
         Ok(SummonerDto {
             id: summoner_name_formatted.to_string(),
@@ -98,6 +106,7 @@ impl ApiStrategy for LogApiStrategy {
             lp,
             tier,
             division,
+            icon_url,
         })
     }
 

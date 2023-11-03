@@ -16,6 +16,7 @@ pub struct SummonerDto {
     pub tier: Option<String>,
     pub lp: Option<i64>,
     pub division: Option<String>,
+    pub icon_url: String,
 }
 
 impl SummonerDto {
@@ -29,9 +30,10 @@ impl SummonerDto {
                 queue_type,
                 tier,
                 lp,
-                division
+                division,
+                icon_url
                 )
-            VALUES (?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
             "#,
             self.id,
             self.name,
@@ -40,6 +42,7 @@ impl SummonerDto {
             self.tier,
             self.lp,
             self.division,
+            self.icon_url
         )
         .execute(pool)
         .await?;
@@ -57,9 +60,10 @@ impl SummonerDto {
                 queue_type,
                 tier,
                 lp,
-                division
+                division,
+                icon_url
                 )
-            VALUES (?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
             "#,
             self.id,
             self.name,
@@ -68,6 +72,7 @@ impl SummonerDto {
             self.tier,
             self.lp,
             self.division,
+            self.icon_url
         )
         .execute(pool)
         .await?;

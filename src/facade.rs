@@ -8,7 +8,7 @@ use serenity::{
     utils::Colour,
 };
 use sqlx::{Pool, Sqlite};
-use tokio::task::JoinSet;
+use tokio::{sync::mpsc, task::JoinSet};
 use url::Url;
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
         active_game_dto::ActiveGameDto, game_dto::GameDto, guild_dto::GuildDto, log_dto::LogDto,
         summoner_dto::SummonerDto,
     },
-    op_gg_api,
+    op_gg_api, util,
 };
 
 static GAME_WATCHER_INTERVAL: u64 = 60;
@@ -82,23 +82,35 @@ impl Facade {
     pub async fn startup_tasks(&self) -> Result<()> {
         let summoners = SummonerDto::get_all(&self.pool).await?;
 
-        for s in summoners {
-            match self.api_strategy.get_games(s.id.as_str()).await {
-                Ok(games) => {
-                    // Fetch and store new games
-                    for mut game in games {
-                        game.notified = true;
-                        game.upsert(&self.pool).await?;
+        let mut join_set = JoinSet::new();
+
+        // TODO: maybe limit this to a specific amount of threads
+        for summoner in summoners {
+            let pool = self.pool.clone();
+            let api_strategy = self.api_strategy.clone();
+            // spawn a new thread for each user
+            join_set.spawn(async move {
+                match api_strategy.get_games(summoner.id.as_str()).await {
+                    Ok(games) => {
+                        // Fetch and store new games
+                        for mut game in games {
+                            game.notified = true;
+                            let _ = game.upsert(&pool).await;
+                        }
+                    }
+                    Err(e) => {
+                        println!("startup_tasks: {}", e.to_string().as_str());
                     }
                 }
-                Err(e) => {
-                    println!("startup_tasks: {}", e.to_string().as_str());
-                }
-            }
-            // Set all games to "notified"
-            GameDto::set_all_notified(&self.pool).await?;
+            });
         }
 
+        while let Some(result) = join_set.join_next().await {
+            result?
+        }
+
+        // Set all games to "notified"
+        GameDto::set_all_notified(&self.pool).await?;
         Ok(())
     }
 
@@ -173,12 +185,9 @@ impl Facade {
     async fn game_watcher_worker(pool: &Pool<Sqlite>, http: &Http) -> Result<()> {
         let summoners = SummonerDto::get_all(&pool).await?;
 
-        for s in summoners {
-            let games = GameDto::get_unnotified_games_for_summoner(&pool, &s.id).await?;
-            let guild = s.get_guild(&pool).await?;
-            let tier = s.tier.unwrap_or("".to_string());
-            let division = s.division.unwrap_or("".to_string());
-            let lp = s.lp.unwrap_or(0);
+        for summoner in summoners {
+            let games = GameDto::get_unnotified_games_for_summoner(&pool, &summoner.id).await?;
+            let guild = summoner.get_guild(&pool).await?;
 
             for mut game in games {
                 if let Some(chat_channel_id) = guild.chat_channel_id {
@@ -191,11 +200,7 @@ impl Facade {
                         Colour::new(0xe55a5a)
                     };
 
-                    let thumbnail_url = format!(
-                        "https://ddragon.leagueoflegends.com/cdn/13.21.1/img/champion/{}.png",
-                        game.champion_name
-                    );
-                    let thumbnail_url = Url::parse(&thumbnail_url)?.to_string();
+                    let champion_image_url = util::get_champion_image_url(&game.champion_name)?;
 
                     let lp_change = game
                         .lp_change
@@ -206,33 +211,46 @@ impl Facade {
                                 lp.to_string()
                             }
                         })
-                        .map_or("".to_string(), |lp| format!("{} league point(s)!", lp));
+                        .map(|lp| format!("{} lp!", lp));
 
                     let match_url = format!("https://leagueofgraphs.com{}", game.id);
                     let match_url = Url::parse(&match_url)?.to_string();
-                    let icon_url = Url::parse("https://cdn.discordapp.com/icons/101198129352691712/362b75dce5e0960e1c35250928e268f2.webp?size=128")?.to_string();
+                    let icon_url = Url::parse(&summoner.icon_url)?.to_string();
                     let title = if game.win { "Victory" } else { "Defeat" };
+                    let author_url = util::get_author_url(&summoner.name)?;
 
                     embed
+                        .author(|a| a.name(&summoner.name).icon_url(icon_url).url(author_url))
                         .title(title.to_string())
                         .url(match_url)
-                        .description(format!(
-                            "{} {} ({} {} {} lp)",
-                            s.name, lp_change, tier, division, lp,
-                        ))
+                        .description(
+                            lp_change
+                                .unwrap_or(game.promotion_text.clone().unwrap_or("".to_string())),
+                        )
                         .color(color)
                         .timestamp(Timestamp::from_unix_timestamp(game.game_created_at)?)
-                        .author(|a| a.name("Game Results").icon_url(icon_url))
-                        .fields(vec![
-                            (
-                                "Score",
-                                format!("{}/{}/{}", game.kills, game.deaths, game.assists),
-                                true,
-                            ),
-                            ("Champion", game.champion_name.clone(), true),
-                            ("Queue", game.game_mode.clone(), true),
-                        ])
-                        .thumbnail(thumbnail_url);
+                        .thumbnail(champion_image_url);
+
+                    if let (Some(tier), Some(division), Some(lp)) = (
+                        summoner.tier.clone(),
+                        summoner.division.clone(),
+                        summoner.lp.clone(),
+                    ) {
+                        embed.field(
+                            format!("{} {}", tier, division),
+                            format!("{} lp", lp),
+                            false,
+                        );
+                    }
+
+                    embed
+                        .field("Queue", game.game_mode.clone(), true)
+                        .field(
+                            "Score",
+                            format!("{}/{}/{}", game.kills, game.deaths, game.assists),
+                            true,
+                        )
+                        .field("Champion", game.champion_name.clone(), true);
 
                     ChannelId(chat_channel_id as u64)
                         .send_message(http, |m| m.set_embed(embed))
@@ -364,31 +382,43 @@ impl Facade {
                 // Yello #e5e55a
                 let color = Colour::new(0xe5e55a);
 
-                let thumbnail_url = format!(
-                    "https://ddragon.leagueoflegends.com/cdn/13.21.1/img/champion/{}.png",
-                    active_game.champion
-                );
-                let thumbnail_url = Url::parse(&thumbnail_url)?.to_string();
+                let champion_image_url = util::get_champion_image_url(&active_game.champion)?;
 
                 let match_url = format!("https://porofessor.gg/live/na/{}", summoner.name);
                 let match_url = Url::parse(&match_url)?.to_string();
-                let icon_url = Url::parse("https://cdn.discordapp.com/icons/101198129352691712/362b75dce5e0960e1c35250928e268f2.webp?size=128")?.to_string();
+                let icon_url = Url::parse(&summoner.icon_url)?.to_string();
+                let author_url = util::get_author_url(&summoner.name)?;
 
                 embed
+                    .author(|a| a.name(summoner.name).icon_url(icon_url).url(author_url))
                     .title(format!("In game {}", active_game.game_mode))
                     .url(match_url)
-                    .description(format!(
-                        "{} is currently in a game with {}",
-                        summoner.name, active_game.champion
-                    ))
                     .color(color)
                     .timestamp(Timestamp::from_unix_timestamp(active_game.game_created_at)?)
-                    .author(|a| a.name("Game status").icon_url(icon_url))
-                    .fields(vec![
-                        ("Champion", active_game.champion.clone(), true),
-                        ("Role", active_game.role.clone(), true),
-                    ])
-                    .thumbnail(thumbnail_url);
+                    // Show champion name in the first column
+                    .field("Champion", active_game.champion.clone(), true)
+                    .thumbnail(champion_image_url);
+
+                // Show role in another column if available
+                if !active_game.role.to_lowercase().contains("unknown") {
+                    embed.field("Role", active_game.role.clone(), true);
+                }
+
+                // Show rank/division/lp in another column if available
+                if let (Some(tier), Some(division), Some(lp)) =
+                    (summoner.tier, summoner.division.clone(), summoner.lp)
+                {
+                    embed.field(format!("{} {}", tier, division), format!("{} lp", lp), true);
+                }
+
+                let demotion_text = "⚠️ Demotion Game ⚠️";
+                if let (Some(lp), Some(division)) = (summoner.lp, summoner.division) {
+                    let is_valid_division =
+                        ["I", "II", "III"].iter().any(|&x| division.contains(x));
+                    if lp == 0 && is_valid_division {
+                        embed.description(demotion_text);
+                    }
+                }
 
                 ChannelId(chat_channel_id as u64)
                     .send_message(http, |m| m.set_embed(embed))
