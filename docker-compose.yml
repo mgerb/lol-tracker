@@ -1,0 +1,7 @@
+version: "3.0"
+
+services:
+  mg-discord-rs:
+    build: .
+    env_file: .env
+    volumes: ./db.sqlite:/bot/db.sqlite
