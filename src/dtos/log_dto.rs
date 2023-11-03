@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use sqlx::{Pool, Sqlite};
 
 pub struct LogDto {
@@ -43,14 +43,24 @@ impl LogDto {
         }
     }
 
-    pub async fn info(pool: &Pool<Sqlite>, message: &str) -> Result<()> {
-        Self::new(message, ErrorType::Info).create(pool).await?;
-        Ok(())
+    pub async fn info(pool: &Pool<Sqlite>, message: &str) {
+        match Self::new(message, ErrorType::Info).create(pool).await {
+            Ok(_) => {}
+            Err(e) => {
+                // Fallback to console logging
+                println!("log info: {}", e.to_string());
+            }
+        };
     }
 
-    pub async fn error(pool: &Pool<Sqlite>, message: &str) -> Result<()> {
-        Self::new(message, ErrorType::Error).create(pool).await?;
-        Ok(())
+    pub async fn error(pool: &Pool<Sqlite>, message: &str) {
+        match Self::new(message, ErrorType::Error).create(pool).await {
+            Ok(_) => {}
+            Err(e) => {
+                // Fallback to console logging
+                println!("log error: {}", e.to_string());
+            }
+        };
     }
 
     pub async fn create(&self, pool: &Pool<Sqlite>) -> Result<()> {
@@ -58,17 +68,16 @@ impl LogDto {
         sqlx::query!(
             r#"
             INSERT INTO log (
-               message,
-               error_type
-                )
+                message,
+                error_type
+            )
             VALUES (?, ?);
             "#,
             self.message,
             error_type
         )
         .execute(pool)
-        .await
-        .context("failed to insert log")?;
+        .await?;
 
         Ok(())
     }
@@ -76,8 +85,7 @@ impl LogDto {
     pub async fn get_all(pool: &Pool<Sqlite>) -> Result<Vec<LogDto>> {
         let logs = sqlx::query_as!(LogDto, "SELECT * FROM log")
             .fetch_all(pool)
-            .await
-            .context("failed to query log")?;
+            .await?;
 
         Ok(logs)
     }

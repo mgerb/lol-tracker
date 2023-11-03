@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use sqlx::{Pool, Sqlite};
 
 #[derive(Debug, sqlx::FromRow)]
@@ -36,8 +36,7 @@ impl GuildDto {
             self.name
         )
         .execute(pool)
-        .await
-        .context("failed to insert guild")?;
+        .await?;
 
         Ok(())
     }
@@ -55,8 +54,7 @@ impl GuildDto {
             self.id
         )
         .execute(pool)
-        .await
-        .context("failed to update guild")?;
+        .await?;
 
         Ok(())
     }
@@ -64,8 +62,7 @@ impl GuildDto {
     pub async fn get_all(pool: &Pool<Sqlite>) -> Result<Vec<GuildDto>> {
         let guilds = sqlx::query_as!(GuildDto, "SELECT * FROM guild")
             .fetch_all(pool)
-            .await
-            .context("failed to query guild")?;
+            .await?;
 
         Ok(guilds)
     }

@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use sqlx::{Pool, Sqlite};
 
 #[derive(Debug, sqlx::FromRow)]
@@ -18,13 +18,12 @@ impl ActiveGameDto {
     pub async fn upsert(&self, pool: &Pool<Sqlite>) -> Result<()> {
         sqlx::query!(
             r#"
-            INSERT OR REPLACE INTO active_game (id, summoner_id, game_created_at, created_at, champion, role, spectate_link, notified, game_mode)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO active_game (id, summoner_id, game_created_at, champion, role, spectate_link, notified, game_mode)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             self.id,
             self.summoner_id,
             self.game_created_at,
-            self.created_at,
             self.champion,
             self.role,
             self.spectate_link,
@@ -32,8 +31,7 @@ impl ActiveGameDto {
             self.game_mode,
         )
         .execute(pool)
-        .await
-        .context("Failed to upsert active game")?;
+        .await?;
 
         Ok(())
     }
@@ -41,13 +39,21 @@ impl ActiveGameDto {
     pub async fn insert_or_ignore(&self, pool: &Pool<Sqlite>) -> Result<()> {
         sqlx::query!(
             r#"
-            INSERT OR IGNORE INTO active_game (id, summoner_id, game_created_at, created_at, champion, role, spectate_link, notified, game_mode)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR IGNORE INTO active_game (
+                id,
+                summoner_id,
+                game_created_at,
+                champion,
+                role,
+                spectate_link,
+                notified,
+                game_mode
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             self.id,
             self.summoner_id,
             self.game_created_at,
-            self.created_at,
             self.champion,
             self.role,
             self.spectate_link,
@@ -55,8 +61,7 @@ impl ActiveGameDto {
             self.game_mode,
         )
         .execute(pool)
-        .await
-        .context("Failed to insert active game")?;
+        .await?;
 
         Ok(())
     }
@@ -71,8 +76,7 @@ impl ActiveGameDto {
             "#,
         )
         .fetch_all(pool)
-        .await
-        .context("Failed to get unnotified active games")?;
+        .await?;
 
         Ok(active_games)
     }

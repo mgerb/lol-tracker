@@ -43,26 +43,12 @@ impl Facade {
         })
     }
 
-    pub async fn log_info(&self, message: &str) -> Result<()> {
-        match LogDto::info(&self.pool, message).await {
-            Ok(_) => {}
-            Err(e) => {
-                // Fallback to console logging
-                println!("log_info error: {}", e.to_string());
-            }
-        }
-        Ok(())
+    pub async fn log_info(&self, message: &str) {
+        LogDto::info(&self.pool, message).await;
     }
 
-    pub async fn log_error(&self, message: &str) -> Result<()> {
-        match LogDto::error(&self.pool, message).await {
-            Ok(_) => {}
-            Err(e) => {
-                // Fallback to console logging
-                println!("log_error error: {}", e.to_string());
-            }
-        };
-        Ok(())
+    pub async fn log_error(&self, message: &str) {
+        LogDto::error(&self.pool, message).await;
     }
 
     pub async fn init_guild(
@@ -97,11 +83,17 @@ impl Facade {
         let summoners = SummonerDto::get_all(&self.pool).await?;
 
         for s in summoners {
-            // Fetch and store new games
-            let games = self.api_strategy.get_games(s.id.as_str()).await?;
-            for mut game in games {
-                game.notified = true;
-                game.upsert(&self.pool).await?;
+            match self.api_strategy.get_games(s.id.as_str()).await {
+                Ok(games) => {
+                    // Fetch and store new games
+                    for mut game in games {
+                        game.notified = true;
+                        game.upsert(&self.pool).await?;
+                    }
+                }
+                Err(e) => {
+                    println!("startup_tasks: {}", e.to_string().as_str());
+                }
             }
             // Set all games to "notified"
             GameDto::set_all_notified(&self.pool).await?;
@@ -171,7 +163,7 @@ impl Facade {
                         &pool,
                         format!("start_game_watcher_worker: {}", e.to_string().as_str()).as_str(),
                     )
-                    .await?;
+                    .await;
                 }
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(GAME_WATCHER_INTERVAL)).await;
@@ -205,12 +197,16 @@ impl Facade {
                     );
                     let thumbnail_url = Url::parse(&thumbnail_url)?.to_string();
 
-                    let lp_change = if lp > 0 {
-                        game.lp_change.map(|lp| format!("+{}", lp))
-                    } else {
-                        game.lp_change.map(|lp| lp.to_string())
-                    }
-                    .map_or("".to_string(), |lp| format!("{} league point(s)!", lp));
+                    let lp_change = game
+                        .lp_change
+                        .map(|lp| {
+                            if lp > 0 {
+                                format!("+{}", lp)
+                            } else {
+                                lp.to_string()
+                            }
+                        })
+                        .map_or("".to_string(), |lp| format!("{} league point(s)!", lp));
 
                     let match_url = format!("https://leagueofgraphs.com{}", game.id);
                     let match_url = Url::parse(&match_url)?.to_string();
@@ -246,7 +242,7 @@ impl Facade {
                         &pool,
                         &format!("No chat channel set for guild: {}", guild.id),
                     )
-                    .await?;
+                    .await;
                 }
 
                 game.notified = true;
@@ -270,7 +266,7 @@ impl Facade {
                         &pool,
                         &format!("start_summoner_api_worker: {}", &e.to_string()),
                     )
-                    .await?;
+                    .await;
                 }
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(SUMMONER_API_INTERVAL)).await;
@@ -315,7 +311,7 @@ impl Facade {
                         &pool,
                         &format!("start_active_game_worker: {}", &e.to_string()),
                     )
-                    .await?;
+                    .await;
                 }
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(ACTIVE_GAME_INTERVAL)).await;
@@ -349,7 +345,7 @@ impl Facade {
                         &pool,
                         &format!("start_active_game_watcher_worker: {}", &e.to_string()),
                     )
-                    .await?;
+                    .await;
                 }
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(ACTIVE_GAME_INTERVAL)).await;
@@ -405,7 +401,7 @@ impl Facade {
                     &pool,
                     &format!("No chat channel set for guild: {}", guild.id),
                 )
-                .await?;
+                .await;
             }
         }
 

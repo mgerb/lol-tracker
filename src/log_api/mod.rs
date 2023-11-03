@@ -169,9 +169,8 @@ impl ApiStrategy for LogApiStrategy {
                     .inner_html()
                     .parse()?;
 
-                let lp = ele
-                    .select(&lp_selector)
-                    .next()
+                let lp_element = ele.select(&lp_selector).next();
+                let lp = lp_element
                     .map(|s| s.inner_html())
                     .map(|s| s.trim().to_string())
                     .map_or(None, |s| {
@@ -199,6 +198,16 @@ impl ApiStrategy for LogApiStrategy {
                     .attr("tooltip")
                     .context("Unable to get gameMode tooltip")?
                     .to_string();
+
+                // Skip with an error if the game is ranked and we can't get the .lpChange element
+                if game_mode.to_lowercase().contains("ranked") && lp_element.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "Unable to get lp from ranked game: {} - {}",
+                        summoner_id,
+                        champion
+                    ));
+                }
+
                 let script = ele
                     .select(&script_selector)
                     .next()
@@ -273,7 +282,7 @@ impl ApiStrategy for LogApiStrategy {
         let summoner_card = html.select(&summoner_card_selector).next();
 
         // Return early if the summoner is not in a game
-        if (summoner_card.is_none()) {
+        if summoner_card.is_none() {
             return Ok(None);
         }
 
@@ -321,7 +330,7 @@ impl ApiStrategy for LogApiStrategy {
             .trim()
             .to_string();
 
-        let game_created_at_selector = self.get_selector("#gameDuration")?;
+        let game_created_at_selector = self.get_selector("[data-game-creation]")?;
 
         let game_created_at = html
             .select(&game_created_at_selector)

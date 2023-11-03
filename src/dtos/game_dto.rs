@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use sqlx::{Pool, Sqlite};
 
 #[derive(Debug, sqlx::FromRow)]
@@ -53,8 +53,7 @@ impl GameDto {
             self.promotion_text
         )
         .execute(pool)
-        .await
-        .context("failed to insert game")?;
+        .await?;
 
         Ok(())
     }
@@ -92,8 +91,7 @@ impl GameDto {
             self.promotion_text
         )
         .execute(pool)
-        .await
-        .context("failed to upsert game")?;
+        .await?;
 
         Ok(())
     }
@@ -101,8 +99,7 @@ impl GameDto {
     pub async fn get_all(pool: &Pool<Sqlite>) -> Result<Vec<GameDto>> {
         let games = sqlx::query_as!(GameDto, "SELECT * FROM game")
             .fetch_all(pool)
-            .await
-            .context("failed to query game")?;
+            .await?;
 
         Ok(games)
     }
@@ -120,8 +117,7 @@ impl GameDto {
             summoner_id
         )
         .fetch_all(pool)
-        .await
-        .context("summoner_dto: failed to query games")?;
+        .await?;
 
         Ok(games)
     }
@@ -134,8 +130,7 @@ impl GameDto {
             "#
         )
         .execute(pool)
-        .await
-        .context("failed to set all games to notified")?;
+        .await?;
 
         Ok(())
     }

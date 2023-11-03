@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use sqlx::{Pool, Sqlite};
 
 use crate::dtos::game_dto::GameDto;
@@ -42,8 +42,7 @@ impl SummonerDto {
             self.division,
         )
         .execute(pool)
-        .await
-        .context("summoner_dto: failed to insert summoner")?;
+        .await?;
 
         Ok(())
     }
@@ -71,8 +70,7 @@ impl SummonerDto {
             self.division,
         )
         .execute(pool)
-        .await
-        .context("summoner_dto: failed to upsert summoner")?;
+        .await?;
 
         Ok(())
     }
@@ -80,8 +78,7 @@ impl SummonerDto {
     pub async fn get_all(pool: &Pool<Sqlite>) -> Result<Vec<SummonerDto>> {
         let summoners = sqlx::query_as!(SummonerDto, "SELECT * FROM summoner")
             .fetch_all(pool)
-            .await
-            .context("summoner_dto: failed to query summoners")?;
+            .await?;
 
         Ok(summoners)
     }
@@ -96,8 +93,7 @@ impl SummonerDto {
             summoner_id
         )
         .fetch_one(pool)
-        .await
-        .context("summoner_dto: failed to query summoner")?;
+        .await?;
 
         Ok(summoner)
     }
@@ -115,8 +111,7 @@ impl SummonerDto {
             summoner_name,
         )
         .execute(pool)
-        .await
-        .context("summoner_dto: failed to delete summoner")?;
+        .await?;
 
         Ok(())
     }
@@ -131,8 +126,7 @@ impl SummonerDto {
             self.guild_id
         )
         .fetch_one(pool)
-        .await
-        .context("summoner_dto: failed to query guild")?;
+        .await?;
 
         Ok(guild)
     }
