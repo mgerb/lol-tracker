@@ -95,6 +95,7 @@ impl ApiStrategy for LogApiStrategy {
             .attr("src")
             .context("unable to get src")?
             .to_string();
+        let icon_url = format!("https:{}", icon_url);
 
         Ok(SummonerDto {
             id: summoner_name_formatted.to_string(),
