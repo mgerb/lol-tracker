@@ -209,13 +209,14 @@ impl ApiStrategy for LogApiStrategy {
                     .context("Unable to get gameMode tooltip")?
                     .to_string();
 
-                // Skip with an error if the game is ranked and we can't get the .lpChange element
+                // Skip if the game is ranked and we can't get the .lpChange element
                 if game_mode.to_lowercase().contains("ranked") && lp_element.is_none() {
-                    return Err(anyhow::anyhow!(
+                    // TODO: temp solution - log this in database
+                    println!(
                         "Unable to get lp from ranked game: {} - {}",
-                        summoner_id,
-                        champion
-                    ));
+                        summoner_id, champion
+                    );
+                    continue;
                 }
 
                 let script = ele

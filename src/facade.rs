@@ -413,8 +413,7 @@ impl Facade {
 
                 let demotion_text = "⚠️ Demotion Game ⚠️";
                 if let (Some(lp), Some(division)) = (summoner.lp, summoner.division) {
-                    let is_valid_division =
-                        ["I", "II", "III"].iter().any(|&x| division.contains(x));
+                    let is_valid_division = ["I", "II", "III"].iter().any(|&x| division == x);
                     if lp == 0 && is_valid_division {
                         embed.description(demotion_text);
                     }
