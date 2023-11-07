@@ -1,8 +1,13 @@
 version: "3.0"
 
 services:
-  mg-discord-rs:
-    build: .
-    env_file: .env
+  lol-tracker:
+    image: ghcr.io/mgerb/lol-tracker
     volumes:
       - ./db.sqlite:/bot/db.sqlite
+    environment:
+      - DATABASE_URL=sqlite:db.sqlite
+      - DISCORD_TOKEN=<enter your token here>
+      - BOT_PREFIX=!
+    # Alternatively use .env file. Rename .env.template to .env and add your token.
+    # env_file: .env

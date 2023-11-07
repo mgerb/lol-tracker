@@ -1,3 +1,3 @@
 version=$(git describe --tags);
-docker build -t mgerb/lol-tracker:latest .;
-docker tag mgerb/lol-tracker:latest mgerb/lol-tracker:$version;
+docker build -t ghcr.io/mgerb/lol-tracker:latest .;
+docker tag ghcr.io/mgerb/lol-tracker:latest ghcr.io/mgerb/lol-tracker:$version;

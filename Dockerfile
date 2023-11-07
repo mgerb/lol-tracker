@@ -1,22 +1,18 @@
-# create docker file from rust image
-FROM rust:1.73-bookworm
+FROM rust:1.73-alpine3.18
 
 WORKDIR /home
 
 ADD . .
 
+RUN apk add --no-cache musl-dev libressl-dev
+
 RUN cargo build --release
 
 
-FROM debian:bookworm
+FROM alpine:3.18
 
-# copy over the build artifact
 COPY --from=0 /home/target/release/lol-tracker /bot/lol-tracker
-
-RUN apt update
-RUN apt install -y libssl-dev curl
 
 WORKDIR /bot
 
-# run the binary
 ENTRYPOINT ["/bot/lol-tracker"]
