@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use regex::Regex;
-use scraper::{Element, Html, Selector};
+use scraper::{Html, Selector};
 
 use crate::{
     api_strategy::ApiStrategy,
@@ -13,9 +13,9 @@ static USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit
 
 /// leagueofgraphs.com api
 
-pub struct LogApiStrategy;
+pub struct LeagueOfGraphsApiStrategy;
 
-impl LogApiStrategy {
+impl LeagueOfGraphsApiStrategy {
     fn get_selector(&self, selector_text: &str) -> Result<Selector> {
         let selector = match Selector::parse(selector_text) {
             Ok(s) => Ok(s),
@@ -30,7 +30,7 @@ impl LogApiStrategy {
 }
 
 #[async_trait]
-impl ApiStrategy for LogApiStrategy {
+impl ApiStrategy for LeagueOfGraphsApiStrategy {
     async fn get_summoner(&self, summoner_name: &str, guild_id: i64) -> Result<SummonerDto> {
         let url = format!(
             "https://www.leagueofgraphs.com/summoner/na/{}",

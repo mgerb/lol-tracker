@@ -1,6 +1,5 @@
 use anyhow::{Context as Ctx, Result};
-use serenity::model::prelude::component::InputText;
-use serenity::model::prelude::{ChannelId, Guild, GuildId, ReactionType, Ready};
+use serenity::model::prelude::{Guild, GuildId, ReactionType, Ready};
 use serenity::prelude::{Context, EventHandler, GatewayIntents, TypeMapKey};
 use std::env;
 use std::sync::Arc;

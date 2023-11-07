@@ -1,8 +1,6 @@
 use anyhow::Result;
 use sqlx::{Pool, Sqlite};
 
-use crate::dtos::game_dto::GameDto;
-
 use super::guild_dto::GuildDto;
 
 #[derive(Debug)]

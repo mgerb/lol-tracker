@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serenity::{
     builder::CreateEmbed,
     http::Http,
@@ -8,17 +8,17 @@ use serenity::{
     utils::Colour,
 };
 use sqlx::{Pool, Sqlite};
-use tokio::{sync::mpsc, task::JoinSet};
+use tokio::task::JoinSet;
 use url::Url;
 
 use crate::{
-    api_strategy::{self, ApiStrategy},
+    api_strategy::ApiStrategy,
     db,
     dtos::{
         active_game_dto::ActiveGameDto, game_dto::GameDto, guild_dto::GuildDto, log_dto::LogDto,
         summoner_dto::SummonerDto,
     },
-    op_gg_api, util,
+    util,
 };
 
 static GAME_WATCHER_INTERVAL: u64 = 60;
